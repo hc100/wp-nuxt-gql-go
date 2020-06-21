@@ -52,7 +52,7 @@ export default {
   apollo: {
     clientConfigs: {
       default: {
-        httpEndpoint: 'http://localhost:8080/',
+        httpEndpoint: 'http://localhost:8080/query',
       },
     },
     errorHandler: '~/plugins/apollo-error-handler.js',

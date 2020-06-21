@@ -2,27 +2,17 @@
 #
 # https://gqlgen.com/getting-started/
 
-type Todo {
+type Post {
   id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
-  name: String!
+  post_date: DateTime!
+  post_content: String!
+  post_title: String!
+  post_excerpt: String!
+  post_modified: DateTime!
 }
 
 type Query {
-  todos: [Todo!]!
+  posts: [Post!]!
 }
 
-input NewTodo {
-  text: String!
-  userId: String!
-}
-
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
-}
+scalar DateTime
