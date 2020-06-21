@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,13 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	PageInfo struct {
+		EndCursor       func(childComplexity int) int
+		HasNextPage     func(childComplexity int) int
+		HasPreviousPage func(childComplexity int) int
+		StartCursor     func(childComplexity int) int
+	}
+
 	Post struct {
 		ID           func(childComplexity int) int
 		PostContent  func(childComplexity int) int
@@ -51,13 +59,26 @@ type ComplexityRoot struct {
 		PostTitle    func(childComplexity int) int
 	}
 
+	PostConnection struct {
+		Edges      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	PostEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
 	Query struct {
-		Posts func(childComplexity int) int
+		PostConnection func(childComplexity int, filterWord *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) int
+		Posts          func(childComplexity int) int
 	}
 }
 
 type QueryResolver interface {
 	Posts(ctx context.Context) ([]*model.Post, error)
+	PostConnection(ctx context.Context, filterWord *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) (*model.PostConnection, error)
 }
 
 type executableSchema struct {
@@ -74,6 +95,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "PageInfo.endCursor":
+		if e.complexity.PageInfo.EndCursor == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.EndCursor(childComplexity), true
+
+	case "PageInfo.hasNextPage":
+		if e.complexity.PageInfo.HasNextPage == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.HasNextPage(childComplexity), true
+
+	case "PageInfo.hasPreviousPage":
+		if e.complexity.PageInfo.HasPreviousPage == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.HasPreviousPage(childComplexity), true
+
+	case "PageInfo.startCursor":
+		if e.complexity.PageInfo.StartCursor == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.StartCursor(childComplexity), true
 
 	case "Post.id":
 		if e.complexity.Post.ID == nil {
@@ -116,6 +165,53 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Post.PostTitle(childComplexity), true
+
+	case "PostConnection.edges":
+		if e.complexity.PostConnection.Edges == nil {
+			break
+		}
+
+		return e.complexity.PostConnection.Edges(childComplexity), true
+
+	case "PostConnection.pageInfo":
+		if e.complexity.PostConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.PostConnection.PageInfo(childComplexity), true
+
+	case "PostConnection.totalCount":
+		if e.complexity.PostConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.PostConnection.TotalCount(childComplexity), true
+
+	case "PostEdge.cursor":
+		if e.complexity.PostEdge.Cursor == nil {
+			break
+		}
+
+		return e.complexity.PostEdge.Cursor(childComplexity), true
+
+	case "PostEdge.node":
+		if e.complexity.PostEdge.Node == nil {
+			break
+		}
+
+		return e.complexity.PostEdge.Node(childComplexity), true
+
+	case "Query.postConnection":
+		if e.complexity.Query.PostConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Query_postConnection_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.PostConnection(childComplexity, args["filterWord"].(*model.TextFilterCondition), args["pageCondition"].(*model.PageCondition), args["edgeOrder"].(*model.EdgeOrder)), true
 
 	case "Query.posts":
 		if e.complexity.Query.Posts == nil {
@@ -178,7 +274,11 @@ var sources = []*ast.Source{
 #
 # https://gqlgen.com/getting-started/
 
-type Post {
+interface Node {
+    id: ID!
+}
+
+type Post implements Node {
   id: ID!
   post_date: DateTime!
   post_content: String!
@@ -189,9 +289,90 @@ type Post {
 
 type Query {
   posts: [Post!]!
+  postConnection(
+    filterWord: TextFilterCondition
+    pageCondition: PageCondition
+    edgeOrder: EdgeOrder
+  ): PostConnection
 }
 
-scalar DateTime`, BuiltIn: false},
+enum PostOrderKey {
+  POST_DATE
+}
+
+scalar DateTime
+
+input TextFilterCondition {
+    filterWord: String!
+    matchingPattern: MatchingPattern = PARTIAL_MATCH
+}
+
+enum MatchingPattern {
+    PARTIAL_MATCH
+    EXACT_MATCH
+}
+
+scalar Cursor
+
+input PageCondition {
+    backward: BackwardPagination
+    forward: ForwardPagination
+    nowPageNo: Int!
+    initialLimit: Int
+}
+
+input BackwardPagination {
+    last: Int!
+    before: Cursor
+}
+
+input ForwardPagination {
+    first: Int!
+    after: Cursor
+}
+
+input EdgeOrder {
+     key: OrderKey!
+     direction: OrderDirection!
+}
+
+input OrderKey {
+    postOrderKey: PostOrderKey
+}
+
+enum OrderDirection {
+    ASC
+    DESC
+}
+
+type PostConnection implements Connection {
+  pageInfo: PageInfo!
+  edges: [PostEdge!]!
+  totalCount: Int!
+}
+
+type PostEdge implements Edge {
+  node: Post
+  cursor: Cursor!
+}
+
+interface Connection {
+    pageInfo: PageInfo!
+    edges: [Edge!]!
+    totalCount: Int!
+}
+
+type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: Cursor!
+    endCursor: Cursor!
+}
+
+interface Edge {
+    node: Node
+    cursor: Cursor!
+}`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -210,6 +391,36 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_postConnection_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.TextFilterCondition
+	if tmp, ok := rawArgs["filterWord"]; ok {
+		arg0, err = ec.unmarshalOTextFilterCondition2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐTextFilterCondition(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["filterWord"] = arg0
+	var arg1 *model.PageCondition
+	if tmp, ok := rawArgs["pageCondition"]; ok {
+		arg1, err = ec.unmarshalOPageCondition2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageCondition(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["pageCondition"] = arg1
+	var arg2 *model.EdgeOrder
+	if tmp, ok := rawArgs["edgeOrder"]; ok {
+		arg2, err = ec.unmarshalOEdgeOrder2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐEdgeOrder(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["edgeOrder"] = arg2
 	return args, nil
 }
 
@@ -248,6 +459,142 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PageInfo",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HasNextPage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PageInfo_hasPreviousPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PageInfo",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HasPreviousPage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PageInfo_startCursor(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PageInfo",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StartCursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNCursor2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PageInfo_endCursor(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PageInfo",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EndCursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNCursor2string(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _Post_id(ctx context.Context, field graphql.CollectedField, obj *model.Post) (ret graphql.Marshaler) {
 	defer func() {
@@ -453,6 +800,173 @@ func (ec *executionContext) _Post_post_modified(ctx context.Context, field graph
 	return ec.marshalNDateTime2string(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _PostConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.PostConnection) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PostConnection",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PageInfo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.PageInfo)
+	fc.Result = res
+	return ec.marshalNPageInfo2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageInfo(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PostConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.PostConnection) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PostConnection",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Edges, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.PostEdge)
+	fc.Result = res
+	return ec.marshalNPostEdge2ᚕᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostEdgeᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PostConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.PostConnection) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PostConnection",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalCount, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PostEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.PostEdge) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PostEdge",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Post)
+	fc.Result = res
+	return ec.marshalOPost2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPost(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PostEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.PostEdge) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "PostEdge",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNCursor2string(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query_posts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -485,6 +999,44 @@ func (ec *executionContext) _Query_posts(ctx context.Context, field graphql.Coll
 	res := resTmp.([]*model.Post)
 	fc.Result = res
 	return ec.marshalNPost2ᚕᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_postConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_postConnection_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().PostConnection(rctx, args["filterWord"].(*model.TextFilterCondition), args["pageCondition"].(*model.PageCondition), args["edgeOrder"].(*model.EdgeOrder))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.PostConnection)
+	fc.Result = res
+	return ec.marshalOPostConnection2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostConnection(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1611,15 +2163,259 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputBackwardPagination(ctx context.Context, obj interface{}) (model.BackwardPagination, error) {
+	var it model.BackwardPagination
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "last":
+			var err error
+			it.Last, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "before":
+			var err error
+			it.Before, err = ec.unmarshalOCursor2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputEdgeOrder(ctx context.Context, obj interface{}) (model.EdgeOrder, error) {
+	var it model.EdgeOrder
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "key":
+			var err error
+			it.Key, err = ec.unmarshalNOrderKey2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderKey(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "direction":
+			var err error
+			it.Direction, err = ec.unmarshalNOrderDirection2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderDirection(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputForwardPagination(ctx context.Context, obj interface{}) (model.ForwardPagination, error) {
+	var it model.ForwardPagination
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "first":
+			var err error
+			it.First, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "after":
+			var err error
+			it.After, err = ec.unmarshalOCursor2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputOrderKey(ctx context.Context, obj interface{}) (model.OrderKey, error) {
+	var it model.OrderKey
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "postOrderKey":
+			var err error
+			it.PostOrderKey, err = ec.unmarshalOPostOrderKey2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPageCondition(ctx context.Context, obj interface{}) (model.PageCondition, error) {
+	var it model.PageCondition
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "backward":
+			var err error
+			it.Backward, err = ec.unmarshalOBackwardPagination2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐBackwardPagination(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "forward":
+			var err error
+			it.Forward, err = ec.unmarshalOForwardPagination2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐForwardPagination(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "nowPageNo":
+			var err error
+			it.NowPageNo, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "initialLimit":
+			var err error
+			it.InitialLimit, err = ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTextFilterCondition(ctx context.Context, obj interface{}) (model.TextFilterCondition, error) {
+	var it model.TextFilterCondition
+	var asMap = obj.(map[string]interface{})
+
+	if _, present := asMap["matchingPattern"]; !present {
+		asMap["matchingPattern"] = "PARTIAL_MATCH"
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "filterWord":
+			var err error
+			it.FilterWord, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "matchingPattern":
+			var err error
+			it.MatchingPattern, err = ec.unmarshalOMatchingPattern2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
+
+func (ec *executionContext) _Connection(ctx context.Context, sel ast.SelectionSet, obj model.Connection) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case model.PostConnection:
+		return ec._PostConnection(ctx, sel, &obj)
+	case *model.PostConnection:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._PostConnection(ctx, sel, obj)
+	default:
+		panic(fmt.Errorf("unexpected type %T", obj))
+	}
+}
+
+func (ec *executionContext) _Edge(ctx context.Context, sel ast.SelectionSet, obj model.Edge) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case model.PostEdge:
+		return ec._PostEdge(ctx, sel, &obj)
+	case *model.PostEdge:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._PostEdge(ctx, sel, obj)
+	default:
+		panic(fmt.Errorf("unexpected type %T", obj))
+	}
+}
+
+func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj model.Node) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case model.Post:
+		return ec._Post(ctx, sel, &obj)
+	case *model.Post:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._Post(ctx, sel, obj)
+	default:
+		panic(fmt.Errorf("unexpected type %T", obj))
+	}
+}
 
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
 
-var postImplementors = []string{"Post"}
+var pageInfoImplementors = []string{"PageInfo"}
+
+func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet, obj *model.PageInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pageInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PageInfo")
+		case "hasNextPage":
+			out.Values[i] = ec._PageInfo_hasNextPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "hasPreviousPage":
+			out.Values[i] = ec._PageInfo_hasPreviousPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "startCursor":
+			out.Values[i] = ec._PageInfo_startCursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "endCursor":
+			out.Values[i] = ec._PageInfo_endCursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var postImplementors = []string{"Post", "Node"}
 
 func (ec *executionContext) _Post(ctx context.Context, sel ast.SelectionSet, obj *model.Post) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, postImplementors)
@@ -1671,6 +2467,72 @@ func (ec *executionContext) _Post(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var postConnectionImplementors = []string{"PostConnection", "Connection"}
+
+func (ec *executionContext) _PostConnection(ctx context.Context, sel ast.SelectionSet, obj *model.PostConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, postConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PostConnection")
+		case "pageInfo":
+			out.Values[i] = ec._PostConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "edges":
+			out.Values[i] = ec._PostConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._PostConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var postEdgeImplementors = []string{"PostEdge", "Edge"}
+
+func (ec *executionContext) _PostEdge(ctx context.Context, sel ast.SelectionSet, obj *model.PostEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, postEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PostEdge")
+		case "node":
+			out.Values[i] = ec._PostEdge_node(ctx, field, obj)
+		case "cursor":
+			out.Values[i] = ec._PostEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -1698,6 +2560,17 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
+				return res
+			})
+		case "postConnection":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_postConnection(ctx, field)
 				return res
 			})
 		case "__type":
@@ -1974,6 +2847,20 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCursor2string(ctx context.Context, v interface{}) (string, error) {
+	return graphql.UnmarshalString(v)
+}
+
+func (ec *executionContext) marshalNCursor2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	res := graphql.MarshalString(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNDateTime2string(ctx context.Context, v interface{}) (string, error) {
 	return graphql.UnmarshalString(v)
 }
@@ -2000,6 +2887,55 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
+	return graphql.UnmarshalInt(v)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNOrderDirection2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderDirection(ctx context.Context, v interface{}) (model.OrderDirection, error) {
+	var res model.OrderDirection
+	return res, res.UnmarshalGQL(v)
+}
+
+func (ec *executionContext) marshalNOrderDirection2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderDirection(ctx context.Context, sel ast.SelectionSet, v model.OrderDirection) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNOrderKey2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderKey(ctx context.Context, v interface{}) (model.OrderKey, error) {
+	return ec.unmarshalInputOrderKey(ctx, v)
+}
+
+func (ec *executionContext) unmarshalNOrderKey2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderKey(ctx context.Context, v interface{}) (*model.OrderKey, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalNOrderKey2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐOrderKey(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalNPageInfo2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v model.PageInfo) graphql.Marshaler {
+	return ec._PageInfo(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._PageInfo(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPost2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v model.Post) graphql.Marshaler {
@@ -2051,6 +2987,57 @@ func (ec *executionContext) marshalNPost2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑg
 		return graphql.Null
 	}
 	return ec._Post(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPostEdge2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostEdge(ctx context.Context, sel ast.SelectionSet, v model.PostEdge) graphql.Marshaler {
+	return ec._PostEdge(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPostEdge2ᚕᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PostEdge) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPostEdge2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostEdge(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNPostEdge2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostEdge(ctx context.Context, sel ast.SelectionSet, v *model.PostEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._PostEdge(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -2293,6 +3280,18 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalOBackwardPagination2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐBackwardPagination(ctx context.Context, v interface{}) (model.BackwardPagination, error) {
+	return ec.unmarshalInputBackwardPagination(ctx, v)
+}
+
+func (ec *executionContext) unmarshalOBackwardPagination2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐBackwardPagination(ctx context.Context, v interface{}) (*model.BackwardPagination, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOBackwardPagination2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐBackwardPagination(ctx, v)
+	return &res, err
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	return graphql.UnmarshalBoolean(v)
 }
@@ -2316,6 +3315,158 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return ec.marshalOBoolean2bool(ctx, sel, *v)
 }
 
+func (ec *executionContext) unmarshalOCursor2string(ctx context.Context, v interface{}) (string, error) {
+	return graphql.UnmarshalString(v)
+}
+
+func (ec *executionContext) marshalOCursor2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	return graphql.MarshalString(v)
+}
+
+func (ec *executionContext) unmarshalOCursor2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOCursor2string(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalOCursor2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec.marshalOCursor2string(ctx, sel, *v)
+}
+
+func (ec *executionContext) unmarshalOEdgeOrder2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐEdgeOrder(ctx context.Context, v interface{}) (model.EdgeOrder, error) {
+	return ec.unmarshalInputEdgeOrder(ctx, v)
+}
+
+func (ec *executionContext) unmarshalOEdgeOrder2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐEdgeOrder(ctx context.Context, v interface{}) (*model.EdgeOrder, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOEdgeOrder2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐEdgeOrder(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) unmarshalOForwardPagination2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐForwardPagination(ctx context.Context, v interface{}) (model.ForwardPagination, error) {
+	return ec.unmarshalInputForwardPagination(ctx, v)
+}
+
+func (ec *executionContext) unmarshalOForwardPagination2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐForwardPagination(ctx context.Context, v interface{}) (*model.ForwardPagination, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOForwardPagination2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐForwardPagination(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) unmarshalOInt2int(ctx context.Context, v interface{}) (int, error) {
+	return graphql.UnmarshalInt(v)
+}
+
+func (ec *executionContext) marshalOInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	return graphql.MarshalInt(v)
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOInt2int(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec.marshalOInt2int(ctx, sel, *v)
+}
+
+func (ec *executionContext) unmarshalOMatchingPattern2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx context.Context, v interface{}) (model.MatchingPattern, error) {
+	var res model.MatchingPattern
+	return res, res.UnmarshalGQL(v)
+}
+
+func (ec *executionContext) marshalOMatchingPattern2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx context.Context, sel ast.SelectionSet, v model.MatchingPattern) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalOMatchingPattern2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx context.Context, v interface{}) (*model.MatchingPattern, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOMatchingPattern2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalOMatchingPattern2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐMatchingPattern(ctx context.Context, sel ast.SelectionSet, v *model.MatchingPattern) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOPageCondition2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageCondition(ctx context.Context, v interface{}) (model.PageCondition, error) {
+	return ec.unmarshalInputPageCondition(ctx, v)
+}
+
+func (ec *executionContext) unmarshalOPageCondition2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageCondition(ctx context.Context, v interface{}) (*model.PageCondition, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOPageCondition2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPageCondition(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalOPost2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v model.Post) graphql.Marshaler {
+	return ec._Post(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalOPost2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPost(ctx context.Context, sel ast.SelectionSet, v *model.Post) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Post(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPostConnection2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostConnection(ctx context.Context, sel ast.SelectionSet, v model.PostConnection) graphql.Marshaler {
+	return ec._PostConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalOPostConnection2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostConnection(ctx context.Context, sel ast.SelectionSet, v *model.PostConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PostConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPostOrderKey2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx context.Context, v interface{}) (model.PostOrderKey, error) {
+	var res model.PostOrderKey
+	return res, res.UnmarshalGQL(v)
+}
+
+func (ec *executionContext) marshalOPostOrderKey2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx context.Context, sel ast.SelectionSet, v model.PostOrderKey) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalOPostOrderKey2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx context.Context, v interface{}) (*model.PostOrderKey, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOPostOrderKey2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx, v)
+	return &res, err
+}
+
+func (ec *executionContext) marshalOPostOrderKey2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostOrderKey(ctx context.Context, sel ast.SelectionSet, v *model.PostOrderKey) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
 	return graphql.UnmarshalString(v)
 }
@@ -2337,6 +3488,18 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 		return graphql.Null
 	}
 	return ec.marshalOString2string(ctx, sel, *v)
+}
+
+func (ec *executionContext) unmarshalOTextFilterCondition2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐTextFilterCondition(ctx context.Context, v interface{}) (model.TextFilterCondition, error) {
+	return ec.unmarshalInputTextFilterCondition(ctx, v)
+}
+
+func (ec *executionContext) unmarshalOTextFilterCondition2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐTextFilterCondition(ctx context.Context, v interface{}) (*model.TextFilterCondition, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalOTextFilterCondition2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐTextFilterCondition(ctx, v)
+	return &res, err
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

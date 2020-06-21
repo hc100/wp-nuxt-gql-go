@@ -2,7 +2,11 @@
 #
 # https://gqlgen.com/getting-started/
 
-type Post {
+interface Node {
+    id: ID!
+}
+
+type Post implements Node {
   id: ID!
   post_date: DateTime!
   post_content: String!
@@ -13,6 +17,87 @@ type Post {
 
 type Query {
   posts: [Post!]!
+  postConnection(
+    filterWord: TextFilterCondition
+    pageCondition: PageCondition
+    edgeOrder: EdgeOrder
+  ): PostConnection
+}
+
+enum PostOrderKey {
+  POST_DATE
 }
 
 scalar DateTime
+
+input TextFilterCondition {
+    filterWord: String!
+    matchingPattern: MatchingPattern = PARTIAL_MATCH
+}
+
+enum MatchingPattern {
+    PARTIAL_MATCH
+    EXACT_MATCH
+}
+
+scalar Cursor
+
+input PageCondition {
+    backward: BackwardPagination
+    forward: ForwardPagination
+    nowPageNo: Int!
+    initialLimit: Int
+}
+
+input BackwardPagination {
+    last: Int!
+    before: Cursor
+}
+
+input ForwardPagination {
+    first: Int!
+    after: Cursor
+}
+
+input EdgeOrder {
+     key: OrderKey!
+     direction: OrderDirection!
+}
+
+input OrderKey {
+    postOrderKey: PostOrderKey
+}
+
+enum OrderDirection {
+    ASC
+    DESC
+}
+
+type PostConnection implements Connection {
+  pageInfo: PageInfo!
+  edges: [PostEdge!]!
+  totalCount: Int!
+}
+
+type PostEdge implements Edge {
+  node: Post
+  cursor: Cursor!
+}
+
+interface Connection {
+    pageInfo: PageInfo!
+    edges: [Edge!]!
+    totalCount: Int!
+}
+
+type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: Cursor!
+    endCursor: Cursor!
+}
+
+interface Edge {
+    node: Node
+    cursor: Cursor!
+}

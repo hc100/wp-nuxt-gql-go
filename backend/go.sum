@@ -67,6 +67,7 @@ github.com/hashicorp/golang-lru v0.5.0 h1:CL2msUPvZTLb5O648aiLNJw3hnBxN2+1Jq8rCO
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hc100/wp-nuxt-gql-go v0.0.0-20200621034008-ca374d274d72 h1:CitqFpcDsSPX6fgRaJHcwjAfK6z+mmNBhatfEJ8seew=
 github.com/hc100/wp-nuxt-gql-go v0.0.0-20200621044257-eef65b1e4653 h1:cqYQb/ht37HtS2MRySTS/dIk43YvZXwQ9Z6L1gBRv1U=
+github.com/hc100/wp-nuxt-gql-go v0.0.0-20200621070324-f49524ab9882 h1:JO79wsOHT+MdBiwI2EfCBubCCKsBuFbkP/q2rJlr2YA=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/jinzhu/gorm v1.9.11 h1:gaHGvE+UnWGlbWG4Y3FUwY1EcZ5n6S9WtqBA/uySMLE=
 github.com/jinzhu/gorm v1.9.11/go.mod h1:bu/pK8szGZ2puuErfU0RwyeNdsf3e6nCX/noXaVxkfw=

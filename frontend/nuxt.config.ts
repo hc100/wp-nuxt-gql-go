@@ -36,9 +36,9 @@ export default {
    */
   buildModules: ['@nuxt/typescript-build', '@nuxtjs/vuetify'],
   /*
-   ** Nuxt.js modules
+   ** Nuxt.js modules ('@nuxtjs/pwa')
    */
-  modules: ['@nuxtjs/pwa', '@nuxtjs/apollo'],
+  modules: ['@nuxtjs/apollo'],
   /*
    ** vuetify module configuration
    ** https://github.com/nuxt-community/vuetify-module

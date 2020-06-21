@@ -2,6 +2,57 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
+type Connection interface {
+	IsConnection()
+}
+
+type Edge interface {
+	IsEdge()
+}
+
+type Node interface {
+	IsNode()
+}
+
+type BackwardPagination struct {
+	Last   int     `json:"last"`
+	Before *string `json:"before"`
+}
+
+type EdgeOrder struct {
+	Key       *OrderKey      `json:"key"`
+	Direction OrderDirection `json:"direction"`
+}
+
+type ForwardPagination struct {
+	First int     `json:"first"`
+	After *string `json:"after"`
+}
+
+type OrderKey struct {
+	PostOrderKey *PostOrderKey `json:"postOrderKey"`
+}
+
+type PageCondition struct {
+	Backward     *BackwardPagination `json:"backward"`
+	Forward      *ForwardPagination  `json:"forward"`
+	NowPageNo    int                 `json:"nowPageNo"`
+	InitialLimit *int                `json:"initialLimit"`
+}
+
+type PageInfo struct {
+	HasNextPage     bool   `json:"hasNextPage"`
+	HasPreviousPage bool   `json:"hasPreviousPage"`
+	StartCursor     string `json:"startCursor"`
+	EndCursor       string `json:"endCursor"`
+}
+
 type Post struct {
 	ID           string `json:"id"`
 	PostDate     string `json:"post_date"`
@@ -9,4 +60,147 @@ type Post struct {
 	PostTitle    string `json:"post_title"`
 	PostExcerpt  string `json:"post_excerpt"`
 	PostModified string `json:"post_modified"`
+}
+
+func (Post) IsNode() {}
+
+type PostConnection struct {
+	PageInfo   *PageInfo   `json:"pageInfo"`
+	Edges      []*PostEdge `json:"edges"`
+	TotalCount int         `json:"totalCount"`
+}
+
+func (PostConnection) IsConnection() {}
+
+type PostEdge struct {
+	Node   *Post  `json:"node"`
+	Cursor string `json:"cursor"`
+}
+
+func (PostEdge) IsEdge() {}
+
+type TextFilterCondition struct {
+	FilterWord      string           `json:"filterWord"`
+	MatchingPattern *MatchingPattern `json:"matchingPattern"`
+}
+
+type MatchingPattern string
+
+const (
+	MatchingPatternPartialMatch MatchingPattern = "PARTIAL_MATCH"
+	MatchingPatternExactMatch   MatchingPattern = "EXACT_MATCH"
+)
+
+var AllMatchingPattern = []MatchingPattern{
+	MatchingPatternPartialMatch,
+	MatchingPatternExactMatch,
+}
+
+func (e MatchingPattern) IsValid() bool {
+	switch e {
+	case MatchingPatternPartialMatch, MatchingPatternExactMatch:
+		return true
+	}
+	return false
+}
+
+func (e MatchingPattern) String() string {
+	return string(e)
+}
+
+func (e *MatchingPattern) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MatchingPattern(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MatchingPattern", str)
+	}
+	return nil
+}
+
+func (e MatchingPattern) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type OrderDirection string
+
+const (
+	OrderDirectionAsc  OrderDirection = "ASC"
+	OrderDirectionDesc OrderDirection = "DESC"
+)
+
+var AllOrderDirection = []OrderDirection{
+	OrderDirectionAsc,
+	OrderDirectionDesc,
+}
+
+func (e OrderDirection) IsValid() bool {
+	switch e {
+	case OrderDirectionAsc, OrderDirectionDesc:
+		return true
+	}
+	return false
+}
+
+func (e OrderDirection) String() string {
+	return string(e)
+}
+
+func (e *OrderDirection) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OrderDirection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OrderDirection", str)
+	}
+	return nil
+}
+
+func (e OrderDirection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type PostOrderKey string
+
+const (
+	PostOrderKeyPostDate PostOrderKey = "POST_DATE"
+)
+
+var AllPostOrderKey = []PostOrderKey{
+	PostOrderKeyPostDate,
+}
+
+func (e PostOrderKey) IsValid() bool {
+	switch e {
+	case PostOrderKeyPostDate:
+		return true
+	}
+	return false
+}
+
+func (e PostOrderKey) String() string {
+	return string(e)
+}
+
+func (e *PostOrderKey) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PostOrderKey(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PostOrderKey", str)
+	}
+	return nil
+}
+
+func (e PostOrderKey) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
