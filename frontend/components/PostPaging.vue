@@ -1,135 +1,63 @@
 <template>
-  <v-form>
-    <!-- 「文字列フィルタ」テキストボックス表示エリア -->
-    <v-row>
-      <v-col col="5">
-        <v-card class="pa-4">
-          <v-text-field v-model="search" label="Search"></v-text-field>
-        </v-card>
-      </v-col>
-    </v-row>
-    <!-- ページング込みの一覧テーブル表示エリア -->
-    <v-row>
-      <v-col col="9">
-        <v-card>
-          <v-data-table
-            :search="search"
-            :headers="headers"
-            :items="items"
-            :options.sync="options"
-            :server-items-length="totalCount"
-            fixed-header
-          >
-          </v-data-table>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-form>
+  <div>
+    <v-card>
+      <v-container fluid grid-list-lg>
+        <v-layout row wrap>
+          <PostCard v-for="post in posts" :key="post.id" :post="post" />
+        </v-layout>
+      </v-container>
+    </v-card>
+  </div>
 </template>
 <script lang="ts">
-import { Component, Vue, Watch } from '~/node_modules/nuxt-property-decorator'
-import { DataTableHeader } from '~/types/vuetify'
+import PostCard from '~/components/PostCard.vue'
+import { Component, Vue } from '~/node_modules/nuxt-property-decorator'
 import 'vue-apollo'
 import postConnection from '~/apollo/queries/postConnection.gql'
 import { Edge, EdgeOrder, PageCondition } from '~/gql-types'
 
-// v-data-tableにおけるヘッダーの定義用
-class DataTableHeaderImpl implements DataTableHeader {
-  text: string
-  value: string
-  sortable: boolean
-  width: number
-  constructor(text: string, value: string, sortable: boolean, width: number) {
-    this.text = text
-    this.value = value
-    this.sortable = sortable
-    this.width = width
-  }
-}
-
-// v-data-tableにおけるページング・ソート条件値の受け取り用
 class DataTableOptions {
   public page: number = 1
-  public itemsPerPage: number = 10
-  // MEMO: 現状では一度に指定できるソートキーは１つ
+  public itemsPerPage: number = 3
   public sortBy: Array<string> = []
   public sortDesc: Array<boolean> = []
 }
 
-@Component({})
+@Component({
+  components: {
+    PostCard,
+  },
+})
 export default class PostPaging extends Vue {
-  // 文字列フィルタ入力値の受け口
   private readonly search = ''
+  private posts = new Array<Node>()
 
-  // 一覧テーブルのヘッダー表示要素の配列
-  private readonly headers: DataTableHeader[] = [
-    new DataTableHeaderImpl('ID', 'id', false, 50),
-    new DataTableHeaderImpl('POST', 'text', true, 50),
-    new DataTableHeaderImpl('Done', 'done', true, 50),
-    new DataTableHeaderImpl('CreatedAt(UnixTimestamp)', 'createdAt', true, 50),
-    new DataTableHeaderImpl('User', 'user.name', false, 50),
-  ]
-
-  // 一覧テーブルのデータ（v-data-tableの状態変更をウォッチし、その変更を契機にGraphQLクエリ発行→結果を格納）
-  // eslint-disable-next-line no-array-constructor
-  private items = new Array<Node>()
-
-  // v-data-tableの状態変更をウォッチするための受け皿
-  private options = new DataTableOptions()
-
-  // ページングに依らない検索条件に合致する総件数を保持
   private totalCount: number = 0
-
-  // 今回のページの１番目のレコードを表す識別子
   private startCursor: string | null = null
-
-  // 今回のページの最後のレコードを表す識別子
   private endCursor: string | null = null
-
-  // 現在のページを表す（これも、GraphQLサーバに渡すパラメータとして必要）
   private nowPage: number = 1
 
-  // 文字列フィルタ欄の入力を監視
-  @Watch('search')
-  watchSearchWord() {
-    this.initPageParam()
-    this.connection()
-  }
+  private options = new DataTableOptions()
 
-  // v-data-tableの状態変更をウォッチし、その変更を契機にconnection関数をコール
-  @Watch('options')
-  watchOptions() {
-    // MEMO: ソートや１ページあたり表示件数の変更時は「1」が渡される。
-    if (this.options.page === 1) {
-      this.initPageParam()
-    }
-    this.connection()
-  }
-
-  // 初期表示時やページング条件をクリアしたいタイミングでコールする関数
-  private initPageParam(): void {
+  public created() {
     this.nowPage = 1
     this.options.page = 1
+    this.connection()
   }
 
-  // Apolloライブラリを使ってGraphQLサーバにクエリ発行
   private async connection() {
     try {
-      // $apollo.query()がPromiseを返すのでasync/awaitで受け取り
       const res = await this.$apollo.query({
         query: postConnection,
         variables: {
-          // 文字列フィルタ条件
           filterWord: { filterWord: this.search },
-          // ページング条件
           pageCondition: this.createPageCondition(
-            this.nowPage, // 現在のページ
-            this.options.page, // 遷移先のページ
-            this.options.itemsPerPage, // １ページあたりの表示件数指定
+            this.nowPage,
+            this.options.page,
+            this.options.itemsPerPage,
             this.startCursor,
             this.endCursor
           ),
-          // 並び替え条件
           edgeOrder: this.createEdgeOrder(
             this.options.sortBy,
             this.options.sortDesc
@@ -140,16 +68,12 @@ export default class PostPaging extends Vue {
       if (res && res.data && res.data.postConnection) {
         const conn = res.data.postConnection
 
-        // 一覧表示するデータを抜き出す
-        // edges [ node {id, text, done, ...} ]
-        this.items = conn.edges
+        this.posts = conn.edges
           .filter((e: Edge) => e.node)
           .map((e: Edge) => e.node)
 
-        // ページングに依らない検索条件に合致する総件数を保持
         this.totalCount = conn.totalCount
 
-        // v-data-tableのoptions変更に影響する各種ページ情報を保持
         const pageInfo = conn.pageInfo
         this.startCursor = pageInfo.startCursor
         this.endCursor = pageInfo.endCursor
@@ -170,7 +94,6 @@ export default class PostPaging extends Vue {
     startCursor: string | null,
     endCursor: string | null
   ): PageCondition {
-    // 現在のページと遷移指示先のページとの比較によって「次へ(forward)」なのか「前へ(backward)」なのか判別
     return {
       forward: nowPage < nextPage ? { first: limit, after: endCursor } : null,
       backward:

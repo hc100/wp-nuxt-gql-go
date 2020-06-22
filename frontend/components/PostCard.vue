@@ -1,42 +1,28 @@
 <template>
-  <div>
-    <v-row>
-      <v-col cols="12" sm="6" offset-sm="3">
-        <v-card>
-          <v-list two-line subheader>
-            <v-list-item v-for="post in posts" :key="post.id" link>
-              <v-list-item-avatar>
-                <v-icon>mdi-gift-outline</v-icon>
-              </v-list-item-avatar>
-              <v-list-item-content>
-                <v-list-item-title>{{ post.post_title }}</v-list-item-title>
-                <v-list-item-subtitle>{{
-                  post.post_date
-                }}</v-list-item-subtitle>
-              </v-list-item-content>
-            </v-list-item>
-          </v-list>
-        </v-card>
-      </v-col>
-    </v-row>
-  </div>
+  <v-flex xs12>
+    <v-card color="black">
+      <v-container fluid grid-list-lg>
+        <v-layout row>
+          <v-flex xs7>
+            <div>
+              <div class="headline">{{ post.post_title }}</div>
+              <div>{{ post.post_date }}</div>
+              <div v-html="post.post_content" />
+            </div>
+          </v-flex>
+        </v-layout>
+      </v-container>
+    </v-card>
+  </v-flex>
 </template>
 
-<script lang="ts">
-import { Vue, Component } from 'nuxt-property-decorator'
-import 'vue-apollo'
-import posts from '~/apollo/queries/posts.gql'
-import { Post } from '~/gql-types'
-
-@Component({
-  apollo: {
-    posts: {
-      prefetch: true,
-      query: posts,
+<script>
+export default {
+  props: {
+    post: {
+      type: Object,
+      default: null,
     },
   },
-})
-export default class PostCard extends Vue {
-  posts: Post[] = []
 }
 </script>
