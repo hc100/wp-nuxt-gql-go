@@ -39,9 +39,13 @@ func NewPostDao(db *gorm.DB) PostDao {
 	return &postDao{db: db}
 }
 
+func DefaultQuery(d *postDao) *gorm.DB {
+	return d.db.Model(&Post{}).Where("post_type = 'post' AND post_status='publish' AND post_date < NOW()")
+}
+
 func (d *postDao) FindAll() ([]*Post, error) {
 	var posts []*Post
-	res := d.db.Where("post_type = 'post' AND post_status='publish' AND post_date < NOW()").Order("post_date desc").Limit(3).Find(&posts)
+	res := DefaultQuery(d).Order("post_date desc").Limit(3).Find(&posts)
 	if err := res.Error; err != nil {
 		return nil, err
 	}
@@ -59,10 +63,11 @@ func (d *postDao) FindOne(id string) (*Post, error) {
 	}
 	return posts[0], nil
 }
+
 func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextFilterCondition) (int, error) {
 	if filterWord == nil || filterWord.FilterWord == "" {
 		var cnt int
-		if err := d.db.Model(&Post{}).Count(&cnt).Error; err != nil {
+		if err := DefaultQuery(d).Count(&cnt).Error; err != nil {
 			return 0, err
 		}
 		return cnt, nil
@@ -75,10 +80,8 @@ func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextF
 
 	var cnt int
 
-	res := d.db.
-		Table("wp_posts").
-		Where("post_content LIKE %s", matchStr).
-		Or("post_title LIKE %s", matchStr).
+	res := DefaultQuery(d).
+		Where("post_content LIKE ? OR post_title LIKE ?", matchStr, matchStr).
 		Count(&cnt)
 	if res.Error != nil {
 		return 0, res.Error
@@ -89,11 +92,11 @@ func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextF
 
 func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) ([]*Post, error) {
 
-	base := d.db.Table("wp_posts")
+	base := DefaultQuery(d)
 
 	if filterCondition.ExistsFilter() {
 		matchStr := filterCondition.MatchString()
-		base = base.Where("post_content LIKE %s", matchStr).Or("post_title LIKE %s", matchStr)
+		base = base.Where("post_content LIKE ? OR post_title LIKE ?", matchStr, matchStr)
 	}
 
 	if pageCondition.IsInitialPageView() {
@@ -123,7 +126,7 @@ func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.Te
 				if targetValue == nil {
 					return nil, errors.New("no target value")
 				}
-				base = base.Where("post_date > %s", targetValue).Order(col_ASC(edgeOrder)).Limit(pageCondition.Forward.First)
+				base = base.Where("post_date > ?", targetValue).Order(col_ASC(edgeOrder)).Limit(pageCondition.Forward.First)
 			}
 
 			if pageCondition.Backward != nil {
@@ -135,7 +138,7 @@ func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.Te
 				if targetValue == nil {
 					return nil, errors.New("no target value")
 				}
-				base = base.Where("post_date < %s", targetValue).Order(col_DESC(edgeOrder)).Limit(pageCondition.Backward.Last)
+				base = base.Where("post_date < ?", targetValue).Order(col_DESC(edgeOrder)).Limit(pageCondition.Backward.Last)
 			}
 		case model.OrderDirectionDesc:
 			if pageCondition.Forward != nil {
@@ -147,7 +150,7 @@ func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.Te
 				if targetValue == nil {
 					return nil, errors.New("no target value")
 				}
-				base = base.Where("post_date < %s", targetValue).Order(col_DESC(edgeOrder)).Limit(pageCondition.Forward.First)
+				base = base.Where("post_date < ?", targetValue).Order(col_DESC(edgeOrder)).Limit(pageCondition.Forward.First)
 			}
 
 			if pageCondition.Backward != nil {
@@ -159,7 +162,7 @@ func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.Te
 				if targetValue == nil {
 					return nil, errors.New("no target value")
 				}
-				base = base.Where("post_date > %s", targetValue).Order(col_ASC(edgeOrder)).Limit(pageCondition.Backward.Last)
+				base = base.Where("post_date > ?", targetValue).Order(col_ASC(edgeOrder)).Limit(pageCondition.Backward.Last)
 			}
 		}
 	}

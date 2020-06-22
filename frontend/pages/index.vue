@@ -1,15 +1,15 @@
 <template>
   <div>
-    <PostCard />
+    <PostPaging />
   </div>
 </template>
 
-<script>
-import PostCard from '~/components/PostCard.vue'
+<script lang="ts">
+import { Vue, Component } from 'nuxt-property-decorator'
+import PostPaging from '~/components/PostPaging.vue'
 
-export default {
-  components: {
-    PostCard,
-  },
-}
+@Component({
+  components: { PostPaging },
+})
+export default class IndexPage extends Vue {}
 </script>

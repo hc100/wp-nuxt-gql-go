@@ -8,9 +8,31 @@ export type Scalars = {
   Int: number;
   Float: number;
   DateTime: any;
+  Cursor: any;
 };
 
-export type Post = {
+export type Query = {
+  __typename?: 'Query';
+  posts: Array<Post>;
+  postConnection?: Maybe<PostConnection>;
+};
+
+
+export type QueryPostConnectionArgs = {
+  filterWord?: Maybe<TextFilterCondition>;
+  pageCondition?: Maybe<PageCondition>;
+  edgeOrder?: Maybe<EdgeOrder>;
+};
+
+export type PostEdge = Edge & {
+  __typename?: 'PostEdge';
+  node?: Maybe<Post>;
+  cursor: Scalars['Cursor'];
+};
+
+
+
+export type Post = Node & {
   __typename?: 'Post';
   id: Scalars['ID'];
   post_date: Scalars['DateTime'];
@@ -20,9 +42,78 @@ export type Post = {
   post_modified: Scalars['DateTime'];
 };
 
-export type Query = {
-  __typename?: 'Query';
-  posts: Array<Post>;
+export type Node = {
+  id: Scalars['ID'];
 };
 
+export type OrderKey = {
+  postOrderKey?: Maybe<PostOrderKey>;
+};
+
+export type BackwardPagination = {
+  last: Scalars['Int'];
+  before?: Maybe<Scalars['Cursor']>;
+};
+
+export type Connection = {
+  pageInfo: PageInfo;
+  edges: Array<Edge>;
+  totalCount: Scalars['Int'];
+};
+
+export type Edge = {
+  node?: Maybe<Node>;
+  cursor: Scalars['Cursor'];
+};
+
+export enum PostOrderKey {
+  PostDate = 'POST_DATE'
+}
+
+export type TextFilterCondition = {
+  filterWord: Scalars['String'];
+  matchingPattern?: Maybe<MatchingPattern>;
+};
+
+export type PageCondition = {
+  backward?: Maybe<BackwardPagination>;
+  forward?: Maybe<ForwardPagination>;
+  nowPageNo: Scalars['Int'];
+  initialLimit?: Maybe<Scalars['Int']>;
+};
+
+export type PageInfo = {
+  __typename?: 'PageInfo';
+  hasNextPage: Scalars['Boolean'];
+  hasPreviousPage: Scalars['Boolean'];
+  startCursor: Scalars['Cursor'];
+  endCursor: Scalars['Cursor'];
+};
+
+export enum MatchingPattern {
+  PartialMatch = 'PARTIAL_MATCH',
+  ExactMatch = 'EXACT_MATCH'
+}
+
+export type EdgeOrder = {
+  key: OrderKey;
+  direction: OrderDirection;
+};
+
+export enum OrderDirection {
+  Asc = 'ASC',
+  Desc = 'DESC'
+}
+
+export type ForwardPagination = {
+  first: Scalars['Int'];
+  after?: Maybe<Scalars['Cursor']>;
+};
+
+export type PostConnection = Connection & {
+  __typename?: 'PostConnection';
+  pageInfo: PageInfo;
+  edges: Array<PostEdge>;
+  totalCount: Scalars['Int'];
+};
 

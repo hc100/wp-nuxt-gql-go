@@ -38,7 +38,7 @@ export default {
   /*
    ** Nuxt.js modules ('@nuxtjs/pwa')
    */
-  modules: ['@nuxtjs/apollo'],
+  modules: ['@nuxtjs/apollo', '@nuxtjs/proxy'],
   /*
    ** vuetify module configuration
    ** https://github.com/nuxt-community/vuetify-module
@@ -53,6 +53,12 @@ export default {
     clientConfigs: {
       default: {
         httpEndpoint: 'http://localhost:8080/query',
+        httpLinkOptions: {
+          fetchOptions: {
+            mode: 'cors',
+          },
+          credentials: 'omit',
+        },
       },
     },
     errorHandler: '~/plugins/apollo-error-handler.js',

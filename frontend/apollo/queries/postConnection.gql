@@ -1,0 +1,28 @@
+query postConnection(
+  $filterWord: TextFilterCondition
+  $pageCondition: PageCondition
+  $edgeOrder: EdgeOrder
+) {
+  postConnection(
+    filterWord: $filterWord
+    pageCondition: $pageCondition
+    edgeOrder: $edgeOrder
+  ) {
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      node {
+        id
+        post_date
+        post_title
+        post_content
+      }
+      cursor
+    }
+    totalCount
+  }
+}
