@@ -6,6 +6,16 @@ interface Node {
     id: ID!
 }
 
+type Category {
+  name: String!
+  slug: String!
+}
+
+type Tag {
+  name: String!
+  slug: String!
+}
+
 type Post implements Node {
   id: ID!
   post_date: DateTime!
@@ -13,6 +23,8 @@ type Post implements Node {
   post_title: String!
   post_excerpt: String!
   post_modified: DateTime!
+  category: Category
+  tags: [Tag]
 }
 
 type Query {

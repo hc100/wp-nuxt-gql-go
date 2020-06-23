@@ -3,13 +3,25 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/hc100/wp-nuxt-gql-go/backend/graph/model"
 	"github.com/hc100/wp-nuxt-gql-go/backend/util"
 	"github.com/jinzhu/gorm"
 )
+
+type Tag struct {
+	Name string
+	Slug string
+}
+
+type Category struct {
+	Name string
+	Slug string
+}
 
 type Post struct {
 	ID           string    `gorm:"column:ID;primary_key"`
@@ -18,6 +30,8 @@ type Post struct {
 	PostTitle    string    `gorm:"column:post_title"`
 	PostExcerpt  string    `gorm:"column:post_excerpt"`
 	PostModified time.Time `gorm:"column:post_modified"`
+	Category     Category
+	Tags         []Tag
 }
 
 func (u *Post) TableName() string {
@@ -39,13 +53,13 @@ func NewPostDao(db *gorm.DB) PostDao {
 	return &postDao{db: db}
 }
 
-func DefaultQuery(d *postDao) *gorm.DB {
+func (d *postDao) DefaultQuery() *gorm.DB {
 	return d.db.Model(&Post{}).Where("post_type = 'post' AND post_status='publish' AND post_date < NOW()")
 }
 
 func (d *postDao) FindAll() ([]*Post, error) {
 	var posts []*Post
-	res := DefaultQuery(d).Order("post_date desc").Limit(3).Find(&posts)
+	res := d.DefaultQuery().Order("post_date desc").Limit(3).Find(&posts)
 	if err := res.Error; err != nil {
 		return nil, err
 	}
@@ -67,7 +81,7 @@ func (d *postDao) FindOne(id string) (*Post, error) {
 func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextFilterCondition) (int, error) {
 	if filterWord == nil || filterWord.FilterWord == "" {
 		var cnt int
-		if err := DefaultQuery(d).Count(&cnt).Error; err != nil {
+		if err := d.DefaultQuery().Count(&cnt).Error; err != nil {
 			return 0, err
 		}
 		return cnt, nil
@@ -80,7 +94,7 @@ func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextF
 
 	var cnt int
 
-	res := DefaultQuery(d).
+	res := d.DefaultQuery().
 		Where("post_content LIKE ? OR post_title LIKE ?", matchStr, matchStr).
 		Count(&cnt)
 	if res.Error != nil {
@@ -92,7 +106,7 @@ func (d *postDao) CountByTextFilter(ctx context.Context, filterWord *model.TextF
 
 func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) ([]*Post, error) {
 
-	base := DefaultQuery(d)
+	base := d.DefaultQuery()
 
 	if filterCondition.ExistsFilter() {
 		matchStr := filterCondition.MatchString()
@@ -176,7 +190,60 @@ func (d *postDao) FindByCondition(ctx context.Context, filterCondition *model.Te
 		reOrder(results, edgeOrder)
 	}
 
+	d.getTaxonomy(results)
+
 	return results, nil
+}
+
+func (d *postDao) getTaxonomy(posts []*Post) {
+	if posts == nil {
+		return
+	}
+	if len(posts) == 0 {
+		return
+	}
+
+	ids := make([]int, len(posts))
+	for i, v := range posts {
+		num, _ := strconv.Atoi(v.ID)
+		ids[i] = num
+	}
+
+	rows, err := d.db.Raw("SELECT  t.name as name, t.slug as slug, tt.taxonomy as taxonomy, tr.object_id as object_id FROM wp_terms AS t  INNER JOIN wp_term_taxonomy AS tt ON t.term_id = tt.term_id INNER JOIN wp_term_relationships AS tr ON tr.term_taxonomy_id = tt.term_taxonomy_id WHERE tt.taxonomy IN ('category', 'post_tag', 'post_format') AND tr.object_id IN (?) ORDER BY t.name ASC", ids).Rows()
+	defer rows.Close()
+	if err != nil {
+		return
+	}
+
+	type Result struct {
+		Name     string
+		Slug     string
+		Taxonomy string
+		ObjectId string
+	}
+
+	for rows.Next() {
+		var result Result
+		d.db.ScanRows(rows, &result)
+		for _, v := range posts {
+			if result.ObjectId == v.ID {
+				if result.Taxonomy == "category" {
+					cat := Category{}
+					cat.Name = result.Name
+					cat.Slug = result.Slug
+					v.Category = cat
+				} else if result.Taxonomy == "post_tag" {
+					tag := Tag{}
+					tag.Name = result.Name
+					tag.Slug = result.Slug
+					v.Tags = append(v.Tags, tag)
+				}
+			}
+		}
+
+	}
+
+	return
 }
 
 func reOrder(results []*Post, edgeOrder *model.EdgeOrder) {

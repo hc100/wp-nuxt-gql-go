@@ -25,6 +25,11 @@ type BackwardPagination struct {
 	Before *string `json:"before"`
 }
 
+type Category struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 type EdgeOrder struct {
 	Key       *OrderKey      `json:"key"`
 	Direction OrderDirection `json:"direction"`
@@ -54,12 +59,14 @@ type PageInfo struct {
 }
 
 type Post struct {
-	ID           string `json:"id"`
-	PostDate     string `json:"post_date"`
-	PostContent  string `json:"post_content"`
-	PostTitle    string `json:"post_title"`
-	PostExcerpt  string `json:"post_excerpt"`
-	PostModified string `json:"post_modified"`
+	ID           string    `json:"id"`
+	PostDate     string    `json:"post_date"`
+	PostContent  string    `json:"post_content"`
+	PostTitle    string    `json:"post_title"`
+	PostExcerpt  string    `json:"post_excerpt"`
+	PostModified string    `json:"post_modified"`
+	Category     *Category `json:"category"`
+	Tags         []*Tag    `json:"tags"`
 }
 
 func (Post) IsNode() {}
@@ -78,6 +85,11 @@ type PostEdge struct {
 }
 
 func (PostEdge) IsEdge() {}
+
+type Tag struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
 
 type TextFilterCondition struct {
 	FilterWord      string           `json:"filterWord"`
