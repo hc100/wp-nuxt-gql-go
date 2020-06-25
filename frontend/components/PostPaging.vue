@@ -1,13 +1,9 @@
 <template>
-  <div>
-    <v-card>
-      <v-container fluid grid-list-lg>
-        <v-layout row wrap>
-          <PostCard v-for="post in posts" :key="post.id" :post="post" />
-        </v-layout>
-      </v-container>
-    </v-card>
-  </div>
+  <v-container class="fill-height" fluid>
+    <v-row justify="center">
+      <PostCard v-for="post in posts" :key="post.id" :post="post" />
+    </v-row>
+  </v-container>
 </template>
 <script lang="ts">
 import PostCard from '~/components/PostCard.vue'

@@ -1,28 +1,31 @@
 <template>
-  <v-flex xs12>
-    <v-card color="black">
-      <v-container fluid grid-list-lg>
-        <v-layout row>
-          <v-flex xs7>
-            <div>
-              <div class="headline">{{ post.post_title }}</div>
-              <div>{{ post.post_date }}</div>
-              <div v-html="post.post_content" />
-            </div>
-          </v-flex>
-        </v-layout>
-      </v-container>
-    </v-card>
-  </v-flex>
+  <v-row>
+    <div>
+      <div class="headline">{{ post.post_title }}</div>
+      <div>{{ post.post_date }}</div>
+      <div>
+        <pre class="wp_content" v-html="post.post_content" />
+      </div>
+    </div>
+  </v-row>
 </template>
 
-<script>
-export default {
-  props: {
-    post: {
-      type: Object,
-      default: null,
-    },
-  },
+<script lang="ts">
+import { Component, Prop, Vue } from '~/node_modules/nuxt-property-decorator'
+
+@Component
+export default class PostCard extends Vue {
+  @Prop({ default: null })
+  post!: Object
 }
 </script>
+
+<style>
+pre {
+  white-space: pre-wrap; /* Since CSS 2.1 */
+  white-space: -moz-pre-wrap; /* Mozilla, since 1999 */
+  white-space: -pre-wrap; /* Opera 4-6 */
+  white-space: -o-pre-wrap; /* Opera 7 */
+  word-wrap: break-word; /* Internet Explorer 5.5+ */
+}
+</style>
