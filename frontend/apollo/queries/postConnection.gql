@@ -20,6 +20,12 @@ query postConnection(
         post_date
         post_title
         post_content
+        category {
+          name
+        }
+        tags {
+          name
+        }
       }
       cursor
     }
