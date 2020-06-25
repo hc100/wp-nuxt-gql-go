@@ -20,6 +20,12 @@ type Node interface {
 	IsNode()
 }
 
+type Archive struct {
+	Year  int `json:"year"`
+	Month int `json:"month"`
+	Posts int `json:"posts"`
+}
+
 type BackwardPagination struct {
 	Last   int     `json:"last"`
 	Before *string `json:"before"`

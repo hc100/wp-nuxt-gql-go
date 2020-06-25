@@ -6,6 +6,12 @@ interface Node {
     id: ID!
 }
 
+type Archive {
+  year: Int!
+  month: Int!
+  posts: Int!
+}
+
 type Category {
   name: String!
   slug: String!
@@ -34,6 +40,7 @@ type Query {
     pageCondition: PageCondition
     edgeOrder: EdgeOrder
   ): PostConnection
+  archives: [Archive!]
 }
 
 enum PostOrderKey {

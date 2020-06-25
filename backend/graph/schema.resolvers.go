@@ -78,6 +78,8 @@ func (r *queryResolver) PostConnection(ctx context.Context, filterWord *model.Te
 				PostTitle:    post.PostTitle,
 				PostExcerpt:  post.PostExcerpt,
 				PostModified: post.PostModified.Format("2006-01-02 15:04:05"),
+				Category:     post.Category,
+				Tags:         post.Tags,
 			},
 		})
 
@@ -94,6 +96,22 @@ func (r *queryResolver) PostConnection(ctx context.Context, filterWord *model.Te
 		Edges:      edges,
 		TotalCount: totalCount,
 	}, nil
+}
+
+func (r *queryResolver) Archives(ctx context.Context) ([]*model.Archive, error) {
+	archives, err := database.NewPostDao(r.DB).FindArchives()
+	if err != nil {
+		return nil, err
+	}
+	var results []*model.Archive
+	for _, archive := range archives {
+		results = append(results, &model.Archive{
+			Year:  archive.Year,
+			Month: archive.Month,
+			Posts: archive.Posts,
+		})
+	}
+	return results, nil
 }
 
 // Query returns generated.QueryResolver implementation.

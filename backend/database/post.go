@@ -12,16 +12,6 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-type Tag struct {
-	Name string
-	Slug string
-}
-
-type Category struct {
-	Name string
-	Slug string
-}
-
 type Post struct {
 	ID           string    `gorm:"column:ID;primary_key"`
 	PostDate     time.Time `gorm:"column:post_date"`
@@ -29,8 +19,14 @@ type Post struct {
 	PostTitle    string    `gorm:"column:post_title"`
 	PostExcerpt  string    `gorm:"column:post_excerpt"`
 	PostModified time.Time `gorm:"column:post_modified"`
-	Category     Category
-	Tags         []Tag
+	Category     *model.Category
+	Tags         []*model.Tag
+}
+
+type Archive struct {
+	Year  int `gorm:"column:year"`
+	Month int `gorm:"column:month"`
+	Posts int `gorm:"column:posts"`
 }
 
 func (u *Post) TableName() string {
@@ -38,6 +34,7 @@ func (u *Post) TableName() string {
 }
 
 type PostDao interface {
+	FindArchives() ([]*Archive, error)
 	FindAll() ([]*Post, error)
 	FindOne(id string) (*Post, error)
 	CountByTextFilter(ctx context.Context, filterWord *model.TextFilterCondition) (int, error)
@@ -54,6 +51,23 @@ func NewPostDao(db *gorm.DB) PostDao {
 
 func (d *postDao) DefaultQuery() *gorm.DB {
 	return d.db.Model(&Post{}).Where("post_type = 'post' AND post_status='publish' AND post_date < NOW()")
+}
+
+func (d *postDao) FindArchives() ([]*Archive, error) {
+	rows, err := d.db.Raw("SELECT YEAR(post_date) AS `year`, MONTH(post_date) AS `month`, count(ID) as posts FROM wp_posts WHERE post_type = 'post' AND post_status = 'publish' GROUP BY YEAR(post_date), MONTH(post_date) ORDER BY year desc, month DESC").Rows()
+	defer rows.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var archives []*Archive
+	for rows.Next() {
+		var archive Archive
+		d.db.ScanRows(rows, &archive)
+		archives = append(archives, &archive)
+	}
+
+	return archives, nil
 }
 
 func (d *postDao) FindAll() ([]*Post, error) {
@@ -227,15 +241,15 @@ func (d *postDao) getTaxonomy(posts []*Post) {
 		for _, v := range posts {
 			if result.ObjectId == v.ID {
 				if result.Taxonomy == "category" {
-					cat := Category{}
+					cat := model.Category{}
 					cat.Name = result.Name
 					cat.Slug = result.Slug
-					v.Category = cat
+					v.Category = &cat
 				} else if result.Taxonomy == "post_tag" {
-					tag := Tag{}
+					tag := model.Tag{}
 					tag.Name = result.Name
 					tag.Slug = result.Slug
-					v.Tags = append(v.Tags, tag)
+					v.Tags = append(v.Tags, &tag)
 				}
 			}
 		}

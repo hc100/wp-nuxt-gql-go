@@ -43,6 +43,12 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	Archive struct {
+		Month func(childComplexity int) int
+		Posts func(childComplexity int) int
+		Year  func(childComplexity int) int
+	}
+
 	Category struct {
 		Name func(childComplexity int) int
 		Slug func(childComplexity int) int
@@ -78,6 +84,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		Archives       func(childComplexity int) int
 		PostConnection func(childComplexity int, filterWord *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) int
 		Posts          func(childComplexity int) int
 	}
@@ -91,6 +98,7 @@ type ComplexityRoot struct {
 type QueryResolver interface {
 	Posts(ctx context.Context) ([]*model.Post, error)
 	PostConnection(ctx context.Context, filterWord *model.TextFilterCondition, pageCondition *model.PageCondition, edgeOrder *model.EdgeOrder) (*model.PostConnection, error)
+	Archives(ctx context.Context) ([]*model.Archive, error)
 }
 
 type executableSchema struct {
@@ -107,6 +115,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "Archive.month":
+		if e.complexity.Archive.Month == nil {
+			break
+		}
+
+		return e.complexity.Archive.Month(childComplexity), true
+
+	case "Archive.posts":
+		if e.complexity.Archive.Posts == nil {
+			break
+		}
+
+		return e.complexity.Archive.Posts(childComplexity), true
+
+	case "Archive.year":
+		if e.complexity.Archive.Year == nil {
+			break
+		}
+
+		return e.complexity.Archive.Year(childComplexity), true
 
 	case "Category.name":
 		if e.complexity.Category.Name == nil {
@@ -241,6 +270,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PostEdge.Node(childComplexity), true
 
+	case "Query.archives":
+		if e.complexity.Query.Archives == nil {
+			break
+		}
+
+		return e.complexity.Query.Archives(childComplexity), true
+
 	case "Query.postConnection":
 		if e.complexity.Query.PostConnection == nil {
 			break
@@ -332,6 +368,12 @@ interface Node {
     id: ID!
 }
 
+type Archive {
+  year: Int!
+  month: Int!
+  posts: Int!
+}
+
 type Category {
   name: String!
   slug: String!
@@ -360,6 +402,7 @@ type Query {
     pageCondition: PageCondition
     edgeOrder: EdgeOrder
   ): PostConnection
+  archives: [Archive!]
 }
 
 enum PostOrderKey {
@@ -525,6 +568,108 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _Archive_year(ctx context.Context, field graphql.CollectedField, obj *model.Archive) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Archive",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Year, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Archive_month(ctx context.Context, field graphql.CollectedField, obj *model.Archive) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Archive",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Month, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Archive_posts(ctx context.Context, field graphql.CollectedField, obj *model.Archive) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Archive",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Posts, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _Category_name(ctx context.Context, field graphql.CollectedField, obj *model.Category) (ret graphql.Marshaler) {
 	defer func() {
@@ -1233,6 +1378,37 @@ func (ec *executionContext) _Query_postConnection(ctx context.Context, field gra
 	res := resTmp.(*model.PostConnection)
 	fc.Result = res
 	return ec.marshalOPostConnection2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐPostConnection(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_archives(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Archives(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Archive)
+	fc.Result = res
+	return ec.marshalOArchive2ᚕᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐArchiveᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2637,6 +2813,43 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 
 // region    **************************** object.gotpl ****************************
 
+var archiveImplementors = []string{"Archive"}
+
+func (ec *executionContext) _Archive(ctx context.Context, sel ast.SelectionSet, obj *model.Archive) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, archiveImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Archive")
+		case "year":
+			out.Values[i] = ec._Archive_year(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "month":
+			out.Values[i] = ec._Archive_month(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "posts":
+			out.Values[i] = ec._Archive_posts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var categoryImplementors = []string{"Category"}
 
 func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet, obj *model.Category) graphql.Marshaler {
@@ -2871,6 +3084,17 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_postConnection(ctx, field)
+				return res
+			})
+		case "archives":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_archives(ctx, field)
 				return res
 			})
 		case "__type":
@@ -3164,6 +3388,20 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNArchive2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐArchive(ctx context.Context, sel ast.SelectionSet, v model.Archive) graphql.Marshaler {
+	return ec._Archive(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNArchive2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐArchive(ctx context.Context, sel ast.SelectionSet, v *model.Archive) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Archive(ctx, sel, v)
+}
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	return graphql.UnmarshalBoolean(v)
@@ -3610,6 +3848,46 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalOArchive2ᚕᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐArchiveᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Archive) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNArchive2ᚖgithubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐArchive(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
 }
 
 func (ec *executionContext) unmarshalOBackwardPagination2githubᚗcomᚋhc100ᚋwpᚑnuxtᚑgqlᚑgoᚋbackendᚋgraphᚋmodelᚐBackwardPagination(ctx context.Context, v interface{}) (model.BackwardPagination, error) {
