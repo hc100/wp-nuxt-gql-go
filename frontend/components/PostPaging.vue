@@ -26,7 +26,7 @@ class DataTableOptions {
 })
 export default class PostPaging extends Vue {
   private readonly search = ''
-  private posts = new Array<Node>()
+  private posts: Node[] = []
 
   private totalCount: number = 0
   private startCursor: string | null = null

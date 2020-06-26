@@ -6,7 +6,7 @@
         <span v-if="post.category">カテゴリ: {{ post.category.name }}</span>
         <span v-if="post.tags"
           >タグ:
-          <span v-for="(list, index) in post.tags">
+          <span v-for="(list, index) in post.tags" :key="index">
             <span>{{ list.name }}</span
             ><span v-if="index + 1 < post.tags.length">, </span>
           </span>
