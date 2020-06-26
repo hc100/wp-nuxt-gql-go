@@ -1,0 +1,7 @@
+query archvies {
+  archives {
+    year
+    month
+    posts
+  }
+}
